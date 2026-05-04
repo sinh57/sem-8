@@ -1,0 +1,200 @@
+/*
+Step 1: Open Colab :-
+Create a new notebook
+
+
+Step 2: Enable GPU :-
+
+Runtime → Change runtime type → GPU → Save
+
+
+Check GPU:
+!nvidia-smi
+
+
+Step 3: Install CUDA helper plugin :-
+
+Run:
+
+!pip install git+https://github.com/afnan47/cuda.git
+
+
+Step 4: Load CUDA extension :-
+%load_ext nvcc_plugin
+
+
+Step 5: Test CUDA :-
+%%cu
+#include <iostream>
+int main(){
+  std::cout << "Hello World\n";
+  return 0;
+}
+
+*/
+
+// Matrix Multiplication using CUDA C  (Full Code for Colab)
+
+
+
+
+
+
+%%cu
+#include <iostream>
+using namespace std;
+
+/*
+====================================================
+CUDA KERNEL FUNCTION (Runs on GPU)
+====================================================
+Each thread computes ONE element of result matrix C
+Formula:
+C[row][col] = sum(A[row][k] * B[k][col])
+*/
+__global__ void multiply(int *A, int *B, int *C, int N) {
+
+    // Find row index for this thread
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Find column index for this thread
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Check if thread is inside matrix boundary
+    if (row < N && col < N) {
+
+        int sum = 0;  // store result for C[row][col]
+
+        // Multiply row of A and column of B
+        for (int k = 0; k < N; k++) {
+            sum += A[row * N + k] * B[k * N + col];
+        }
+
+        // Store result in output matrix
+        C[row * N + col] = sum;
+    }
+}
+
+/*
+====================================================
+FUNCTION: Initialize matrix with random values
+====================================================
+Used to fill matrices A and B with numbers (0–9)
+*/
+void initialize(int *matrix, int N) {
+    for (int i = 0; i < N * N; i++) {
+        matrix[i] = rand() % 10;
+    }
+}
+
+/*
+====================================================
+FUNCTION: Print matrix in proper format
+====================================================
+Used to display matrix row by row
+*/
+void print(int *matrix, int N) {
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            cout << matrix[i * N + j] << " ";
+        }
+        cout << endl;
+    }
+    cout << endl;
+}
+
+/*
+====================================================
+MAIN FUNCTION (Execution starts here)
+====================================================
+Steps:
+1. Create matrices
+2. Initialize values
+3. Copy data to GPU
+4. Run CUDA kernel
+5. Copy result back to CPU
+6. Print result
+*/
+int main() {
+
+    int N = 3;  // matrix size (N x N)
+
+    // CPU pointers (Host memory)
+    int *A, *B, *C;
+
+    // GPU pointers (Device memory)
+    int *d_A, *d_B, *d_C;
+
+    // Memory size for N x N matrix
+    int size = N * N * sizeof(int);
+
+    // =========================================
+    // STEP 1: Allocate memory on CPU
+    // =========================================
+    A = new int[N * N];
+    B = new int[N * N];
+    C = new int[N * N];
+
+    // =========================================
+    // STEP 2: Initialize matrices A and B
+    // =========================================
+    initialize(A, N);
+    initialize(B, N);
+
+    cout << "Matrix A:\n";
+    print(A, N);
+
+    cout << "Matrix B:\n";
+    print(B, N);
+
+    // =========================================
+    // STEP 3: Allocate memory on GPU
+    // =========================================
+    cudaMalloc(&d_A, size);
+    cudaMalloc(&d_B, size);
+    cudaMalloc(&d_C, size);
+
+    // =========================================
+    // STEP 4: Copy data from CPU → GPU
+    // =========================================
+    cudaMemcpy(d_A, A, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B, size, cudaMemcpyHostToDevice);
+
+    // =========================================
+    // STEP 5: Define threads and blocks
+    // =========================================
+    // Each block has 2x2 threads
+    dim3 threads(2, 2);
+
+    // Number of blocks depends on matrix size
+    dim3 blocks((N + 1) / 2, (N + 1) / 2);
+
+    // =========================================
+    // STEP 6: Launch CUDA kernel
+    // =========================================
+    multiply<<<blocks, threads>>>(d_A, d_B, d_C, N);
+
+    // =========================================
+    // STEP 7: Copy result GPU → CPU
+    // =========================================
+    cudaMemcpy(C, d_C, size, cudaMemcpyDeviceToHost);
+
+    cout << "Matrix C = A × B:\n";
+    print(C, N);
+
+    // =========================================
+    // STEP 8: Free CPU memory
+    // =========================================
+    delete[] A;
+    delete[] B;
+    delete[] C;
+
+    // =========================================
+    // STEP 9: Free GPU memory
+    // =========================================
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+    return 0;
+}

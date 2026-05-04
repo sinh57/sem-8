@@ -1,0 +1,160 @@
+/*
+
+Compile the program
+g++ reduction.cpp -fopenmp -o reduction
+
+Run th program
+./reduction
+
+ONE-LINE (FAST METHOD for exam)
+g++ reduction.cpp -fopenmp -o reduction && ./reduction
+
+IF YOU GET ERROR::::
+ g++ not found
+
+Fix:----
+
+sudo apt update
+sudo apt install build-essential
+
+ Permission denied :::
+
+Fix:---
+
+chmod +x reduction
+
+
+Then run again:
+
+./reduction
+
+
+Use these commands there:
+
+g++ hpc3.cpp -O2 -fopenmp -std=c++17 -o hpc3
+./hpc3
+If OpenMP is missing, install compiler tools first:
+
+sudo apt update
+sudo apt install g++
+Quick exam tip:
+
+Keep #include <omp.h> and -fopenmp together (both are required).
+If needed, you can change thread count in code:
+omp_set_num_threads(4); → set based on system (e.g., 2/4/8).
+
+
+# C++ version
+g++ -fopenmp HPCL_Exp_03.cpp -o parallel_reduction
+./parallel_reduction
+
+# Python version
+python HPCL_Exp_03.py
+
+Problem Statement: Implement Min, Max, Sum and Average operations using Parallel Reduction.
+*/
+
+#include <iostream>
+#include <vector>
+#include <omp.h>
+#include <random>
+#include <chrono>
+#include <limits>
+#include <algorithm>
+
+// This class demonstrates both sequential and OpenMP parallel reduction
+// operations on the same data set for easy performance comparison.
+class ParallelReduction {
+private:
+    // Input array on which min, max, sum, and average are computed.
+    std::vector<int> data;
+
+public:
+    ParallelReduction(int size) {
+        // Fill the vector with random integers in range [1, 10000].
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> dis(1, 10000);
+        
+        data.resize(size);
+        for(int i = 0; i < size; i++) {
+            data[i] = dis(gen);
+        }
+    }
+
+    // Baseline method: single-threaded reduction.
+    void sequential_reduction() {
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        // Initialize reduction variables with identity-like extreme values.
+        int min_val = std::numeric_limits<int>::max();
+        int max_val = std::numeric_limits<int>::min();
+        long long sum = 0;
+
+        for(int num : data) {
+            min_val = std::min(min_val, num);
+            max_val = std::max(max_val, num);
+            sum += num;
+        }
+        double avg = static_cast<double>(sum) / data.size();
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        std::cout << "Sequential Results:\n";
+        std::cout << "Min: " << min_val << "\n";
+        std::cout << "Max: " << max_val << "\n";
+        std::cout << "Sum: " << sum << "\n";
+        std::cout << "Average: " << avg << "\n";
+        std::cout << "Time taken: " << duration.count() << " microseconds\n\n";
+    }
+
+    // OpenMP method: multi-threaded reduction.
+    void parallel_reduction() {
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        // Shared result variables (OpenMP creates private copies internally
+        // and combines them safely at the end because of reduction clause).
+        int min_val = std::numeric_limits<int>::max();
+        int max_val = std::numeric_limits<int>::min();
+        long long sum = 0;
+        double sum_for_avg = 0.0;
+
+        // parallel for: loop iterations are divided across threads.
+        // reduction(min:max:+) tells OpenMP how to merge thread-local results.
+        #pragma omp parallel for reduction(min:min_val) reduction(max:max_val) reduction(+:sum,sum_for_avg)
+        for(size_t i = 0; i < data.size(); i++) {
+            min_val = std::min(min_val, data[i]);
+            max_val = std::max(max_val, data[i]);
+            sum += data[i];
+            sum_for_avg += data[i];
+        }
+
+        double avg = sum_for_avg / static_cast<double>(data.size());
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        std::cout << "Parallel Results:\n";
+        std::cout << "Min: " << min_val << "\n";
+        std::cout << "Max: " << max_val << "\n";
+        std::cout << "Sum: " << sum << "\n";
+        std::cout << "Average: " << avg << "\n";
+        std::cout << "Time taken: " << duration.count() << " microseconds\n\n";
+    }
+};
+
+int main() {
+    // Large input size helps show visible speedup in parallel execution.
+    const int SIZE = 10000000;
+
+    // Fix number of threads for reproducible output in lab/exam runs.
+    omp_set_num_threads(4);
+
+    // Create data once, then run both methods on same input.
+    ParallelReduction pr(SIZE);
+    pr.sequential_reduction();
+    pr.parallel_reduction();
+
+    return 0;
+}

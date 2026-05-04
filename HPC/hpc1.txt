@@ -1,0 +1,301 @@
+/*
+
+
+Problem Statement: Design and implement Parallel Breadth First Search and Depth First Search based on existing 
+algorithms using OpenMP. Use a Tree or an undirected graph for BFS and DFS.
+
+1) Open Terminal
+Press Ctrl + Alt + T.
+
+2) Go to your file folder
+Example:
+
+cd ~/Desktop
+(Use the folder where hpc1.cpp is saved.)
+
+3) Compile with OpenMP
+formmat ---> g++ path/to/file/file_name.cpp -fopenmp -o output
+
+g++ hpc1.cpp -fopenmp -O2 -o hpc1
+
+4) Run
+formmat ---> ./output
+
+./hpc1
+You should see sequential and parallel BFS/DFS outputs.
+
+STEP 3: Compile with OpenMP
+g++ filename.cpp -fopenmp -o output
+
+
+Example:
+
+g++ graph.cpp -fopenmp -o graph
+
+
+If g++ is missing
+Check:
+
+g++ --version
+If command not found, install:
+
+sudo apt update
+sudo apt install g++
+If OpenMP is not working
+Install full build tools:
+
+sudo apt install build-essential
+Then compile again with -fopenmp.
+
+One-line compile+run (fast in exam)
+g++ hpc1.cpp -fopenmp -O2 -o hpc1 && ./hpc1
+
+
+If you get permission error
+
+Run this first:-
+
+chmod +x hpc1
+
+
+Then again:-
+
+./hpc1
+
+What to say in viva (very short)
+“I used adjacency list for an undirected graph.”
+“Sequential BFS uses queue; sequential DFS uses stack.”
+“Parallel BFS processes one frontier level in parallel using OpenMP.”
+“Parallel DFS processes popped batch elements in parallel.”
+“Critical sections protect shared structures (visited and queue/stack).”
+
+# C++ version
+g++ -fopenmp HPCL_Exp_01.cpp -o parallel_graph_search
+./parallel_graph_search
+
+# Python version
+python HPCL_Exp_01.py
+*/
+
+
+
+
+
+code :::
+
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <omp.h>
+
+using namespace std;
+
+/*
+=========================================================
+WHAT IS THIS PROGRAM?
+=========================================================
+This program performs:
+1. Depth First Search (DFS)
+2. Breadth First Search (BFS)
+on a graph using OpenMP (parallel programming)
+
+OpenMP helps us use multiple CPU threads at the same time.
+*/
+
+/*
+=========================================================
+GRAPH CLASS
+=========================================================
+We are creating a graph using "Adjacency List"
+
+Example:
+0 -> 1, 2
+1 -> 3, 4
+means node 0 is connected to 1 and 2
+*/
+class Graph {
+
+    int V;  // number of vertices (nodes in graph)
+
+    // adjacency list:
+    // each index stores list of connected nodes
+    vector<vector<int>> adj;
+
+public:
+
+    /*
+    Constructor:
+    This runs automatically when we create graph object
+    It sets number of vertices and creates empty list
+    */
+    Graph(int V) {
+        this->V = V;        // store number of nodes
+        adj.resize(V);      // create empty list for each node
+    }
+
+    /*
+    =========================================================
+    ADD EDGE FUNCTION
+    =========================================================
+    This connects one node to another
+    Example: 0 -> 1 means edge from 0 to 1
+    */
+    void addEdge(int u, int v) {
+        adj[u].push_back(v);
+    }
+
+    /*
+    =========================================================
+    DFS (DEPTH FIRST SEARCH) - SIMPLE EXPLANATION
+    =========================================================
+    DFS means:
+    - Go deep into graph first
+    - Then come back and explore other paths
+
+    Here we use recursion + OpenMP
+    */
+
+    void parallelDFSUtil(int node, vector<bool> &visited) {
+
+        // STEP 1: mark current node as visited
+        visited[node] = true;
+
+        // STEP 2: print current node
+        cout << node << " ";
+
+        /*
+        STEP 3: Explore all neighbors (connected nodes)
+
+        OpenMP parallel for means:
+        → each neighbor is processed by different thread
+        */
+        #pragma omp parallel for
+        for (int i = 0; i < adj[node].size(); i++) {
+
+            int next = adj[node][i]; // get neighbor node
+
+            // if not visited, go deeper
+            if (!visited[next]) {
+                parallelDFSUtil(next, visited);
+            }
+        }
+    }
+
+    /*
+    This function starts DFS from starting node
+    */
+    void parallelDFS(int start) {
+
+        // create visited array (false = not visited yet)
+        vector<bool> visited(V, false);
+
+        cout << "Parallel DFS: ";
+
+        // start DFS from given node
+        parallelDFSUtil(start, visited);
+
+        cout << endl;
+    }
+
+    /*
+    =========================================================
+    BFS (BREADTH FIRST SEARCH) - SIMPLE EXPLANATION
+    =========================================================
+    BFS means:
+    - Visit all nearby nodes first
+    - Then go deeper level by level
+
+    We use QUEUE for BFS
+    */
+
+    void parallelBFS(int start) {
+
+        vector<bool> visited(V, false); // track visited nodes
+        queue<int> q;                   // queue for BFS
+
+        // STEP 1: start node
+        visited[start] = true;
+        q.push(start);
+
+        cout << "Parallel BFS: ";
+
+        /*
+        STEP 2: process queue until empty
+        */
+        while (!q.empty()) {
+
+            // take front node
+            int node = q.front();
+            q.pop();
+
+            // print node
+            cout << node << " ";
+
+            /*
+            STEP 3: check all neighbors
+            OpenMP runs this loop in parallel
+            */
+            #pragma omp parallel for
+            for (int i = 0; i < adj[node].size(); i++) {
+
+                int next = adj[node][i];
+
+                // if not visited, mark and add to queue
+                if (!visited[next]) {
+                    visited[next] = true;
+                    q.push(next);
+                }
+            }
+        }
+
+        cout << endl;
+    }
+};
+
+/*
+=========================================================
+MAIN FUNCTION (PROGRAM STARTS HERE)
+=========================================================
+*/
+int main() {
+
+    /*
+    STEP 1: Create graph with 7 nodes (0 to 6)
+    */
+    Graph g(7);
+
+    /*
+    STEP 2: Add connections (edges)
+    This builds the graph structure
+    */
+
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.addEdge(1, 3);
+    g.addEdge(1, 4);
+    g.addEdge(2, 5);
+    g.addEdge(2, 6);
+
+    /*
+    GRAPH LOOKS LIKE:
+
+            0
+          /   \
+         1     2
+        / \   / \
+       3  4  5  6
+    */
+
+    /*
+    STEP 3: Set number of threads (CPU cores used)
+    */
+    omp_set_num_threads(4);
+
+    /*
+    STEP 4: Run DFS and BFS
+    */
+    g.parallelDFS(0);  // start DFS from node 0
+    g.parallelBFS(0);  // start BFS from node 0
+
+    return 0;
+}

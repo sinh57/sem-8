@@ -1,0 +1,153 @@
+# ====================================================
+# Binary Classification using Logistic Regression
+# IMDB Sentiment Analysis (Backup for Exam)
+# ====================================================
+
+
+# =========================
+# 1. IMPORT LIBRARIES
+# =========================
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import re
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+
+# =========================
+# 2. LOAD DATASET
+# =========================
+
+#df = pd.read_csv( r'C:\Users\lenovo\OneDrive\Pictures\DL-exam\DL-2\IMDB_Dataset.csv', encoding='latin-1')
+df = pd.read_csv(
+    r'C:\Users\lenovo\OneDrive\Pictures\DL-exam\DL-2\IMDB_Dataset.csv',
+    encoding='latin-1',
+    engine='python',
+    on_bad_lines='skip'
+)
+
+print("Dataset Loaded\n")
+print(df.head())
+
+
+# =========================
+# 3. CLEAN DATA
+# =========================
+
+df = df.dropna()
+
+# Clean sentiment column
+df['sentiment'] = df['sentiment'].str.strip().str.lower()
+
+print("\nSentiment Values:", df['sentiment'].unique())
+
+
+# =========================
+# 4. TEXT PREPROCESSING
+# =========================
+
+def clean_text(text):
+    text = str(text).lower()
+    text = re.sub(r'<.*?>', '', text)
+    text = re.sub(r'[^a-zA-Z ]', '', text)
+    return text
+
+df['review'] = df['review'].apply(clean_text)
+
+
+# =========================
+# 5. LABEL ENCODING
+# =========================
+
+df['sentiment'] = df['sentiment'].map({'positive': 1, 'negative': 0})
+df = df.dropna(subset=['sentiment'])
+
+print("\nSentiment Count:")
+print(df['sentiment'].value_counts())
+
+
+# =========================
+# 6. TF-IDF
+# =========================
+
+vectorizer = TfidfVectorizer(max_features=5000)
+
+X = vectorizer.fit_transform(df['review'])
+y = df['sentiment']
+
+
+# =========================
+# 7. TRAIN-TEST SPLIT
+# =========================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+
+# =========================
+# 8. MODEL (Logistic Regression)
+# =========================
+
+model = LogisticRegression(max_iter=1000)
+
+model.fit(X_train, y_train)
+
+
+# =========================
+# 9. PREDICTION
+# =========================
+
+y_pred = model.predict(X_test)
+
+
+# =========================
+# 10. EVALUATION
+# =========================
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print("\nFinal Accuracy:", accuracy)
+
+# =========================
+# 11. CONFUSION MATRIX
+# =========================
+
+cm = confusion_matrix(y_test, y_pred)
+
+disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+
+disp.plot()
+plt.title("Confusion Matrix")
+plt.show()
+
+# =========================
+# 12. ACCURACY GRAPH
+# =========================
+
+plt.bar(['Accuracy'], [accuracy])
+
+plt.title("Model Accuracy")
+plt.ylabel("Accuracy Value")
+
+plt.show()
+
+
+# =========================
+# 13. ACTUAL vs PREDICTED
+# =========================
+
+plt.plot(y_test.values[:50], label='Actual', marker='o')
+plt.plot(y_pred[:50], label='Predicted', marker='x')
+
+plt.title("Actual vs Predicted (First 50)")
+plt.legend()
+
+plt.show()

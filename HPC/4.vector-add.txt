@@ -1,0 +1,180 @@
+/*
+Step 1: Open Colab :-
+Create a new notebook
+
+
+Step 2: Enable GPU :-
+
+Runtime → Change runtime type → GPU → Save
+
+
+Check GPU:
+!nvidia-smi
+
+
+Step 3: Install CUDA helper plugin :-
+
+Run:
+
+!pip install git+https://github.com/afnan47/cuda.git
+
+
+Step 4: Load CUDA extension :-
+%load_ext nvcc_plugin
+
+
+Step 5: Test CUDA :-
+%%cu
+#include <iostream>
+int main(){
+  std::cout << "Hello World\n";
+  return 0;
+}
+
+*/
+
+// CUDA Vector Addition (Full Code for Colab)
+
+%%cu
+#include <iostream>
+#include <cstdlib>
+using namespace std;
+
+/*
+====================================================
+GPU KERNEL FUNCTION (Runs on GPU)
+====================================================
+Each thread handles ONE element of the vectors
+This function performs: C = A + B (element-wise)
+*/
+__global__ void add(int *A, int *B, int *C, int N) {
+
+    // Unique thread ID (used to access array index)
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Make sure thread does not go out of array size
+    if (tid < N) {
+        C[tid] = A[tid] + B[tid];  // add elements
+    }
+}
+
+/*
+====================================================
+FUNCTION: Initialize vector with random values
+====================================================
+Used to fill array A and B with random numbers
+*/
+void initialize(int *vector, int N) {
+    for (int i = 0; i < N; i++) {
+        vector[i] = rand() % 10;  // values between 0–9
+    }
+}
+
+/*
+====================================================
+FUNCTION: Print vector
+====================================================
+Used to display array values on screen
+*/
+void print(int *vector, int N) {
+    for (int i = 0; i < N; i++) {
+        cout << vector[i] << " ";
+    }
+    cout << endl;
+}
+
+/*
+====================================================
+MAIN FUNCTION (Execution starts here)
+====================================================
+Steps:
+1. Create arrays
+2. Fill values
+3. Copy to GPU
+4. Run kernel
+5. Copy result back
+6. Display output
+*/
+int main() {
+
+    int N = 10;  // size of vector
+
+    // CPU (Host) pointers
+    int *A, *B, *C;
+
+    // GPU (Device) pointers
+    int *X, *Y, *Z;
+
+    // Memory size in bytes
+    size_t size = N * sizeof(int);
+
+    // =====================================
+    // STEP 1: Allocate memory on CPU
+    // =====================================
+    A = new int[N];
+    B = new int[N];
+    C = new int[N];
+
+    // =====================================
+    // STEP 2: Initialize input vectors
+    // =====================================
+    initialize(A, N);
+    initialize(B, N);
+
+    cout << "Vector A: ";
+    print(A, N);
+
+    cout << "Vector B: ";
+    print(B, N);
+
+    // =====================================
+    // STEP 3: Allocate memory on GPU
+    // =====================================
+    cudaMalloc(&X, size);
+    cudaMalloc(&Y, size);
+    cudaMalloc(&Z, size);
+
+    // =====================================
+    // STEP 4: Copy data from CPU → GPU
+    // =====================================
+    cudaMemcpy(X, A, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(Y, B, size, cudaMemcpyHostToDevice);
+
+    // =====================================
+    // STEP 5: Define GPU execution setup
+    // =====================================
+    int threadsPerBlock = 256;  // threads in one block
+    int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
+
+    // =====================================
+    // STEP 6: Launch GPU kernel
+    // =====================================
+    add<<<blocksPerGrid, threadsPerBlock>>>(X, Y, Z, N);
+
+    // =====================================
+    // STEP 7: Copy result GPU → CPU
+    // =====================================
+    cudaMemcpy(C, Z, size, cudaMemcpyDeviceToHost);
+
+    // =====================================
+    // STEP 8: Print result
+    // =====================================
+    cout << "Vector Addition (C = A + B): ";
+    print(C, N);
+
+    // =====================================
+    // STEP 9: Free CPU memory
+    // =====================================
+    delete[] A;
+    delete[] B;
+    delete[] C;
+
+    // =====================================
+    // STEP 10: Free GPU memory
+    // =====================================
+    cudaFree(X);
+    cudaFree(Y);
+    cudaFree(Z);
+
+    return 0;
+}
